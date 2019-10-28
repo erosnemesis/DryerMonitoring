@@ -14,21 +14,21 @@ PRODUCT_VERSION(1);
 
 const uint8_t relayCount = 4;
 const uint8_t alarmCount = 4;
-const uint8_t ampCount = 8;
+const uint8_t ampCount = 1;
 unsigned long debounceTime = millis();
 const uint8_t DEBOUNCE_DELAY = 200;
 const uint16_t RELAY_DELAY = 500;
 const uint16_t knownVoltage = 118;
-String signalStrength = "0";
-String signalQuality = "0";
+double signalStrength;
+double signalQuality;
 
 const String PUBLISH_NAME = "Dryer_Alarms"; // DO NOT MODIFY THIS. GOOGLE CLOUD PUBSUB DEPENDS ON THIS
 const uint16_t rPins[relayCount] = {D3, D2, D1, D0};
 const uint8_t ALARM[alarmCount] = {D4, D5, D6, D8};
 int alarmValues[alarmCount] = {0, 0, 0, 0};
 byte alarmState[alarmCount] = {0, 0, 0, 0};
-String ampValue[ampCount];
-String powerValue[ampCount];
+double ampValue[ampCount];
+double powerValue[ampCount];
 String names[alarmCount];
 
 //current adc chip
@@ -38,6 +38,7 @@ CurrentMonitor monitor;
 void setAlarm(bool inAlarm, int alarmNum);
 int alarmReset(String alarmNum);
 void setAmpReadings();
+int setAlarmCount(String alarmCount);
 
 // setup() runs once, when the device is first turned on.
 void setup() {
@@ -52,6 +53,7 @@ void setup() {
   }
 
   Particle.function("Reset_Dryer", alarmReset);
+  Particle.function("Alarm_Count", setAlarmCount);
 
   for(int i = 0; i < relayCount; i++){
     pinMode(rPins[i], OUTPUT);
@@ -60,11 +62,11 @@ void setup() {
 
   monitor.begin();
 
-  Particle.variable("Signal_Strength", signalStrength);
-  Particle.variable("Signal_Quality", signalQuality);
+  Particle.variable("Signal_Strength", &signalStrength, DOUBLE);
+  Particle.variable("Signal_Quality", &signalQuality, DOUBLE);
   for(uint8_t i = 0; i < ampCount; i++){
-    Particle.variable("Amp_" + String(i), ampValue[i]);
-    Particle.variable("Power_" + String(i), powerValue[i]);
+    Particle.variable("Amp_" + String(i), &ampValue[i], DOUBLE);
+    Particle.variable("Power_" + String(i), &powerValue[i], DOUBLE);
   }
 
 }
@@ -86,8 +88,8 @@ void loop() {
   #endif
 
   CellularSignal sig = Cellular.RSSI();
-  signalStrength = String(sig.getStrength());
-  signalQuality = String(sig.getQuality());
+  signalStrength = sig.getStrength();
+  signalQuality = sig.getQuality();
 
   setAmpReadings();
   #if MONITOR_DEBUG
@@ -113,8 +115,8 @@ void setAmpReadings(){
     double amp, power;
     amp = monitor.processAdc(i);
     power = amp * knownVoltage;
-    ampValue[i] = String(amp);
-    powerValue[i] = String(power);
+    ampValue[i] = amp;
+    powerValue[i] = power;
   }
 }
 
@@ -163,5 +165,14 @@ int alarmReset(String alarmNum){
   #if MONITOR_DEBUG
   Serial.println("Remote Dryer Alarm " + alarmNum + " Reset Sent");
   #endif
+  return 1;
+}
+
+int setAlarmCount(String count){
+  int aCount = count.toInt();
+  if(aCount < 1 || aCount > 4){
+    return 0;
+  }
+
   return 1;
 }
